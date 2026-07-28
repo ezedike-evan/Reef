@@ -1,45 +1,64 @@
-import { Image, Text, View } from "react-native";
-import { Link } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
-import { walrus, type Post } from "@umbra/core";
-import { umbraConfig } from "@/lib/config";
-import { trpc } from "@/lib/trpc";
-import { Avatar, Card } from "./ui";
+import { View, Text, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
+import Feather from '@expo/vector-icons/Feather';
+import { useRouter } from 'expo-router';
+import { Card, Avatar, useTheme } from '@/components/ui';
+import { ActionBar } from '@/components/action-bar';
+import { timeAgo } from '@/lib/utils';
+import type { MockPost } from '@/lib/mock';
 
-const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
-
-export function PostCard({ post }: { post: Post }) {
-  const author = useQuery({
-    queryKey: ["profile-by-addr", post.author],
-    queryFn: () => trpc.profileByAddress.query({ address: post.author }),
-  });
-  const likes = useQuery({
-    queryKey: ["reactions", post.id],
-    queryFn: () => trpc.reactionsForPost.query({ postId: post.id }),
-  });
-  const a = author.data;
+export function PostCard({ post }: { post: MockPost }) {
+  const t = useTheme();
+  const router = useRouter();
+  const verified = Boolean(post.author.suinsName);
+  const openPost = () => router.push(`/p/${post.id}` as never);
 
   return (
-    <Card className="mb-3">
-      <View className="flex-row gap-3">
-        <Avatar name={a?.handle ?? post.author} uri={a?.avatarBlobId ? walrus.urlFor(umbraConfig, a.avatarBlobId) : null} />
-        <View className="flex-1">
-          <View className="flex-row flex-wrap items-center gap-x-1">
-            <Text className="font-semibold text-ink">{a?.displayName ?? "Someone"}</Text>
-            <Link href={a ? `/u/${a.handle}` : "/"}>
-              <Text className="text-ink-soft">@{a?.handle ?? short(post.author)}</Text>
-            </Link>
+    <Card style={styles.card}>
+      <View style={styles.header}>
+        <Avatar name={post.author.handle} src={post.author.avatar} size={40} />
+        <View style={styles.headerText}>
+          <View style={styles.nameRow}>
+            <Text
+              style={{ color: t.ink, fontWeight: '600', fontSize: 15 }}
+              onPress={() => router.push(`/u/${post.author.handle}` as never)}
+            >
+              {post.author.displayName}
+            </Text>
+            {verified ? <Feather name="check-circle" size={14} color={t.accent} /> : null}
           </View>
-          {post.text ? <Text className="mt-1 text-ink">{post.text}</Text> : null}
-          {post.media[0] ? (
-            <Image
-              source={{ uri: walrus.urlFor(umbraConfig, post.media[0]) }}
-              style={{ height: 180, borderRadius: 10, marginTop: 8, borderWidth: 2, borderColor: "#1B1B1F" }}
-            />
-          ) : null}
-          <Text className="mt-2 text-ink-soft">♥ {likes.data?.likes ?? 0}</Text>
+          <Text style={{ color: t.inkFaint, fontSize: 13 }}>
+            @{post.author.handle} · {timeAgo(post.createdAt)}
+          </Text>
         </View>
       </View>
+
+      <Text style={[styles.body, { color: t.ink }]} onPress={openPost}>{post.text}</Text>
+
+      {post.media.length > 0 ? (
+        <View style={styles.media}>
+          {post.media.map((uri, i) => (
+            <Image
+              key={i}
+              source={{ uri }}
+              style={styles.img}
+              contentFit="cover"
+            />
+          ))}
+        </View>
+      ) : null}
+
+      <ActionBar post={post} onComment={openPost} />
     </Card>
   );
 }
+
+const styles = StyleSheet.create({
+  card: { padding: 16 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 10 },
+  headerText: { flex: 1 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  body: { fontSize: 15, lineHeight: 22 },
+  media: { marginTop: 10, gap: 8 },
+  img: { width: '100%', height: 220, borderRadius: 16 },
+});
